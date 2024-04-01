@@ -10,15 +10,18 @@ contract Stabilis is ERC20 {
     Oracle public oracle;
     uint256 public feeRatePercentage;
     uint256 public initialCollateralRatioPercentage;
+    uint256 public depositorCoinLockTime;
 
     constructor(
         Oracle _oracle,
         uint256 _feeRatePercentage,
-        uint256 _initialCollateralRatioPercentage
+        uint256 _initialCollateralRatioPercentage,
+        uint256 _depositorCoinLockTime
     ) ERC20("Stabilis", "STA") {
         oracle = _oracle;
         feeRatePercentage = _feeRatePercentage;
         initialCollateralRatioPercentage = _initialCollateralRatioPercentage;
+        depositorCoinLockTime = _depositorCoinLockTime;
     }
 
     function mintStabilis() external payable {
@@ -44,35 +47,34 @@ contract Stabilis is ERC20 {
     function depositCollateralBuffer() external payable {
         int256 surplusOrDeficitInUsd = _getSurplusOrDeficitInContractInUsd();
 
-        uint256 usdInDepositorCoinPrice;
-        uint256 addedSurplusEth;
-
         if (surplusOrDeficitInUsd <= 0) {
             uint256 deficitInUsd = uint256(surplusOrDeficitInUsd * -1);
             uint256 deficitInEth = deficitInUsd / oracle.getPrice();
 
-            addedSurplusEth = msg.value - deficitInEth;
+            uint256 addedSurplusEth = msg.value - deficitInEth;
 
             uint256 requiredInitialSurplusInUsd = initialCollateralRatioPercentage * totalSupply() / 100;
             uint256 requiredInitialSurplusInEth = requiredInitialSurplusInUsd / oracle.getPrice();
 
             require(addedSurplusEth >= requiredInitialSurplusInEth, "Stabilis: Initial collateral ratio not met");
 
-            depositorCoin = new DepositorCoin();
+            uint256 initialDepositorSupply = addedSurplusEth * oracle.getPrice();
 
-            usdInDepositorCoinPrice = 1;
-        } else {
-            uint256 surplusInUsd =  uint256(surplusOrDeficitInUsd);
+            depositorCoin = new DepositorCoin(
+                depositorCoinLockTime,
+                msg.sender,
+                initialDepositorSupply);
 
-            usdInDepositorCoinPrice = depositorCoin.totalSupply() / surplusInUsd;
-            addedSurplusEth = msg.value;
-        }
+            return;
+        } 
+        
+        uint256 surplusInUsd =  uint256(surplusOrDeficitInUsd);
+        uint256 usdInDepositorCoinPrice = depositorCoin.totalSupply() / surplusInUsd;
 
-        uint256 mintDepositorCoinAmount = addedSurplusEth * oracle.getPrice() * usdInDepositorCoinPrice;
+        uint256 mintDepositorCoinAmount = msg.value * oracle.getPrice() * usdInDepositorCoinPrice;
         depositorCoin.mint(msg.sender, mintDepositorCoinAmount);
     }
 
-    
     function withdrawCollateralBuffer(uint256 burnDepositorCoinamount) external {
         int256 surplusOrDeficitInUsd = _getSurplusOrDeficitInContractInUsd();
         require (surplusOrDeficitInUsd > 0, "Stabilis: No depositor funds available to withdraw");
