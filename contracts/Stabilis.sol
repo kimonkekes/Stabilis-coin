@@ -4,6 +4,7 @@ pragma solidity 0.8.24;
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {DepositorCoin} from "./DepositorCoin.sol";
 import {Oracle} from "./Oracle.sol";
+import {FixedPoint, fromFraction, mulFixedPoint, divFixedPoint} from "./FixedPointMath.sol";
 
 contract Stabilis is ERC20 {
     DepositorCoin public depositorCoin;
@@ -67,11 +68,11 @@ contract Stabilis is ERC20 {
 
             return;
         } 
-        
-        uint256 surplusInUsd =  uint256(surplusOrDeficitInUsd);
-        uint256 usdInDepositorCoinPrice = depositorCoin.totalSupply() / surplusInUsd;
 
-        uint256 mintDepositorCoinAmount = msg.value * oracle.getPrice() * usdInDepositorCoinPrice;
+        uint256 surplusInUsd =  uint256(surplusOrDeficitInUsd);
+        FixedPoint usdInDepositorCoinPrice = fromFraction(depositorCoin.totalSupply(), surplusInUsd);
+
+        uint256 mintDepositorCoinAmount = mulFixedPoint(msg.value * oracle.getPrice(), usdInDepositorCoinPrice);
         depositorCoin.mint(msg.sender, mintDepositorCoinAmount);
     }
 
@@ -81,8 +82,8 @@ contract Stabilis is ERC20 {
         uint256 surplusInUsd = uint256(surplusOrDeficitInUsd);
         depositorCoin.burn(msg.sender, burnDepositorCoinamount);
 
-        uint256 usdInDepositorCoinPrice = depositorCoin.totalSupply() / surplusInUsd;
-        uint256 refundUsd = burnDepositorCoinamount / usdInDepositorCoinPrice;
+        FixedPoint usdInDepositorCoinPrice = fromFraction(depositorCoin.totalSupply(), surplusInUsd);
+        uint256 refundUsd = divFixedPoint(burnDepositorCoinamount, usdInDepositorCoinPrice);
         uint256 refundEth = refundUsd / oracle.getPrice();
 
         (bool success, ) = msg.sender.call{value: refundEth}("");
