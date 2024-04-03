@@ -13,6 +13,8 @@ contract Stabilis is ERC20 {
     uint256 public initialCollateralRatioPercentage;
     uint256 public depositorCoinLockTime;
 
+    error InitialCollateralRatioError(string message, uint256 minimumDepositAmount);
+
     constructor(
         Oracle _oracle,
         uint256 _feeRatePercentage,
@@ -57,7 +59,16 @@ contract Stabilis is ERC20 {
             uint256 requiredInitialSurplusInUsd = initialCollateralRatioPercentage * totalSupply() / 100;
             uint256 requiredInitialSurplusInEth = requiredInitialSurplusInUsd / oracle.getPrice();
 
-            require(addedSurplusEth >= requiredInitialSurplusInEth, "Stabilis: Initial collateral ratio not met");
+            if (addedSurplusEth < requiredInitialSurplusInEth) {
+                uint256 minimumDeposit = deficitInEth +
+                    requiredInitialSurplusInEth;
+
+                revert InitialCollateralRatioError(
+                    "Stabilis: Initial collateral ratio not met, the minimum amount in ETH is ",
+                    minimumDeposit
+                );
+            }
+
 
             uint256 initialDepositorSupply = addedSurplusEth * oracle.getPrice();
 
