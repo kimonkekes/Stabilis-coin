@@ -13,7 +13,7 @@ contract DepositorCoin is ERC20 {
         uint256 _initialSupply
     ) ERC20("DepositorCoin", "DEC") {
         owner = msg.sender;
-        unlockTime = block.timestamp + _lockTime;
+        unlockTime = block.timestamp + _lockTime * 1 minutes;
 
         _mint(_initialOwner, _initialSupply);
     }
